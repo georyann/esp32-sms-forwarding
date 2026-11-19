@@ -259,6 +259,136 @@
         border-radius: 3px;
         margin-bottom: 10px;
       }
+
+      input[type="date"] {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        box-sizing: border-box;
+      }
+
+      .check-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .check-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: normal;
+        color: #555;
+        margin-bottom: 0;
+      }
+
+      .check-item input[type="checkbox"] {
+        width: auto;
+        margin: 0;
+      }
+
+      .msg-list {
+        margin-top: 10px;
+        max-height: 420px;
+        overflow-y: auto;
+      }
+
+      .msg-item {
+        border: 1px solid #e0e0e0;
+        border-radius: 5px;
+        padding: 10px;
+        margin-bottom: 8px;
+        background: #fafafa;
+      }
+
+      .msg-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        font-weight: bold;
+        color: #333;
+      }
+
+      .msg-time {
+        font-weight: normal;
+        color: #888;
+        font-size: 12px;
+        white-space: nowrap;
+      }
+
+      .msg-kind {
+        font-size: 12px;
+        color: #888;
+        margin: 4px 0;
+      }
+
+      .msg-body {
+        color: #333;
+        word-break: break-all;
+        white-space: pre-wrap;
+      }
+
+      .rem-item {
+        border: 1px solid #e0e0e0;
+        border-radius: 5px;
+        padding: 10px;
+        margin-bottom: 8px;
+        background: #fafafa;
+      }
+
+      .rem-title {
+        font-weight: bold;
+        color: #333;
+      }
+
+      .rem-sub {
+        font-size: 12px;
+        color: #666;
+        margin-top: 4px;
+      }
+
+      .rem-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+      }
+
+      .rem-actions button {
+        width: auto;
+        margin-top: 0;
+        padding: 6px 14px;
+        font-size: 13px;
+      }
+
+      .rem-list {
+        margin-top: 10px;
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 1px 6px;
+        border-radius: 3px;
+        font-size: 12px;
+        background: #e3f2fd;
+        color: #1565c0;
+        margin-right: 4px;
+      }
+
+      .badge-warn {
+        background: #fff3e0;
+        color: #e65100;
+      }
+
+      .badge-danger {
+        background: #ffebee;
+        color: #c62828;
+      }
+
+      .badge-ok {
+        background: #e8f5e9;
+        color: #2e7d32;
+      }
     </style>
   </head>
   <body>
@@ -318,6 +448,89 @@
           📨 发送短信
         </button>
         <div class="result-box" id="smsResult"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">📨 收到的信息</div>
+        <div class="btn-group">
+          <button type="button" onclick="clearMessages()" style="background: #f44336">
+            🗑️ 清空
+          </button>
+        </div>
+        <div class="hint">
+          收到的短信和来电会保存在设备里（最多保留 50 条），关掉网页也不会丢；新消息会自动出现
+        </div>
+        <div class="result-box" id="messagesResult"></div>
+        <div id="messageList" class="msg-list"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">📅 SIM卡到期提醒</div>
+        <div class="btn-group" style="margin-bottom: 10px">
+          <button type="button" onclick="loadExpiry()" style="background: #2196f3">
+            🔄 刷新列表
+          </button>
+        </div>
+        <div class="hint" style="margin-bottom: 10px">
+          可以保存任意号码（不限于设备里插着的卡）。当前本机号码：
+          <strong id="expCurrent">未知</strong>
+        </div>
+        <div class="form-group">
+          <label>号码</label>
+          <div style="display: flex; gap: 8px">
+            <input type="text" id="expNumber" placeholder="例如 +85244323450" style="flex: 1" />
+            <button
+              type="button"
+              onclick="fillCurrentNumber()"
+              style="width: auto; margin-top: 0; padding: 10px 14px; white-space: nowrap"
+            >
+              用本机号码
+            </button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>到期日期</label>
+          <input type="date" id="expDate" />
+        </div>
+        <div class="form-group">
+          <label>备注（可选）</label>
+          <input type="text" id="expNote" placeholder="例如：月租套餐 / 副卡" />
+        </div>
+        <div class="form-group">
+          <label>到期前多久提醒</label>
+          <div class="check-row">
+            <label class="check-item">
+              <input type="checkbox" id="expOff30" checked /> 提前 30 天
+            </label>
+            <label class="check-item">
+              <input type="checkbox" id="expOff15" checked /> 提前 15 天
+            </label>
+            <label class="check-item">
+              <input type="checkbox" id="expOff7" checked /> 提前 7 天
+            </label>
+            <label class="check-item">
+              <input type="checkbox" id="expOff1" checked /> 提前 1 天
+            </label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="check-item">
+            <input type="checkbox" id="expEnabled" checked /> 启用这条提醒
+          </label>
+        </div>
+        <button type="button" id="expSaveBtn" onclick="saveExpiry()">
+          💾 保存到期提醒
+        </button>
+        <button
+          type="button"
+          id="expCancelBtn"
+          onclick="resetExpiryForm()"
+          style="display: none; background: #607d8b"
+        >
+          取消编辑
+        </button>
+        <div class="result-box" id="expiryResult"></div>
+        <div id="expiryList" class="rem-list"></div>
       </div>
 
       <div class="section">
@@ -1239,11 +1452,322 @@
           });
       }
 
+      // ── 收到的信息（收件箱）──────────────────────────────────
+      function escHtml(s) {
+        return String(s === null || s === undefined ? "" : s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      var msgTimer = null;
+
+      function loadMessages() {
+        var box = document.getElementById("messageList");
+        fetch("/api/messages")
+          .then(function (r) {
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return r.json();
+          })
+          .then(function (d) {
+            renderMessages(d.messages || []);
+          })
+          .catch(function (e) {
+            box.innerHTML =
+              '<div class="result-box result-error">❌ 读取失败: ' +
+              escHtml(e.message) +
+              "</div>";
+          });
+      }
+
+      function formatMsgTime(m) {
+        // ts 是收到时的 epoch 秒，优先用它格式化；拿不到就退回 PDU 原始时间戳
+        if (m.ts && m.ts > 1000000000) {
+          var d = new Date(m.ts * 1000);
+          function p(n) {
+            return (n < 10 ? "0" : "") + n;
+          }
+          return (
+            d.getFullYear() +
+            "-" +
+            p(d.getMonth() + 1) +
+            "-" +
+            p(d.getDate()) +
+            " " +
+            p(d.getHours()) +
+            ":" +
+            p(d.getMinutes()) +
+            ":" +
+            p(d.getSeconds())
+          );
+        }
+        return m.timestamp || "";
+      }
+
+      function renderMessages(list) {
+        var box = document.getElementById("messageList");
+        if (!list.length) {
+          box.innerHTML = '<div class="hint">暂时没有收到任何信息</div>';
+          return;
+        }
+        var html = "";
+        for (var i = 0; i < list.length; i++) {
+          var m = list[i];
+          var kind = m.type === "call" ? "📞 来电" : "✉️ 短信";
+          if (m.label) kind += "·" + m.label;
+          html +=
+            '<div class="msg-item">' +
+            '<div class="msg-head"><span>' +
+            escHtml(m.sender) +
+            '</span><span class="msg-time">' +
+            escHtml(formatMsgTime(m)) +
+            "</span></div>" +
+            '<div class="msg-kind">' +
+            escHtml(kind) +
+            "</div>" +
+            '<div class="msg-body">' +
+            escHtml(m.content || "").replace(/\n/g, "<br>") +
+            "</div>" +
+            "</div>";
+        }
+        box.innerHTML = html;
+      }
+
+      function clearMessages() {
+        if (!confirm("确定要清空全部已收到的信息吗？此操作不可撤销。")) return;
+        fetch("/api/messages", { method: "DELETE" })
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (d) {
+            if (!d.ok) throw new Error(d.error || "清空失败");
+            loadMessages();
+          })
+          .catch(function (e) {
+            alert("清空失败: " + e.message);
+          });
+      }
+
+      function startMsgAutoRefresh() {
+        if (msgTimer) clearInterval(msgTimer);
+        msgTimer = setInterval(function () {
+          loadMessages();
+          // 编辑过程中不重绘列表，避免正在编辑的那条被换掉
+          if (expiryEditIndex < 0) loadExpiry();
+        }, 5000);
+      }
+
+      // ── SIM卡到期提醒 ────────────────────────────────────────
+      var expiryEditIndex = -1;
+      var expiryEntries = [];
+      var expiryCurrentNumber = "";
+      var expiryOffsets = [30, 15, 7, 1];
+
+      function loadExpiry() {
+        fetch("/api/sim-expiry")
+          .then(function (r) {
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return r.json();
+          })
+          .then(function (d) {
+            expiryEntries = d.entries || [];
+            expiryCurrentNumber = d.currentNumber || "";
+            document.getElementById("expCurrent").textContent =
+              expiryCurrentNumber && expiryCurrentNumber !== "未知"
+                ? expiryCurrentNumber
+                : "未知";
+            renderExpiry();
+          })
+          .catch(function (e) {
+            var box = document.getElementById("expiryResult");
+            box.className = "result-box result-error";
+            box.style.display = "block";
+            box.textContent = "❌ 读取失败: " + e.message;
+          });
+      }
+
+      function expiryDaysLabel(days) {
+        if (days === -999 || days === undefined || days === null) {
+          return '<span class="badge badge-danger">日期无效</span>';
+        }
+        if (days < 0) {
+          return '<span class="badge badge-danger">已过期 ' + -days + " 天</span>";
+        }
+        if (days === 0) {
+          return '<span class="badge badge-danger">今天到期</span>';
+        }
+        if (days <= 7) {
+          return '<span class="badge badge-warn">还剩 ' + days + " 天</span>";
+        }
+        return '<span class="badge badge-ok">还剩 ' + days + " 天</span>";
+      }
+
+      function renderExpiry() {
+        var box = document.getElementById("expiryList");
+        if (!expiryEntries.length) {
+          box.innerHTML = '<div class="hint">还没有保存任何到期提醒</div>';
+          return;
+        }
+        var html = "";
+        for (var i = 0; i < expiryEntries.length; i++) {
+          var e = expiryEntries[i];
+          var notified = [];
+          for (var k = 0; k < 4; k++) {
+            if (e.notifiedMask & (1 << k)) notified.push(expiryOffsets[k] + "天");
+          }
+          html +=
+            '<div class="rem-item">' +
+            '<div class="rem-row"><span class="rem-title">' +
+            escHtml(e.number) +
+            "</span>" +
+            expiryDaysLabel(e.daysLeft) +
+            "</div>" +
+            '<div class="rem-sub">到期日期：' +
+            escHtml(e.expiryDate) +
+            (e.note ? " · 备注：" + escHtml(e.note) : "") +
+            (e.enabled ? "" : " · 已停用") +
+            (notified.length ? " · 已提醒：" + escHtml(notified.join("、")) : "") +
+            "</div>" +
+            '<div class="rem-actions">' +
+            '<button type="button" onclick="editExpiry(' +
+            i +
+            ')" style="background:#ff9800">✏️ 编辑</button>' +
+            '<button type="button" onclick="deleteExpiry(' +
+            i +
+            ')" style="background:#f44336">🗑️ 删除</button>' +
+            "</div></div>";
+        }
+        box.innerHTML = html;
+      }
+
+      function fillCurrentNumber() {
+        if (!expiryCurrentNumber || expiryCurrentNumber === "未知") {
+          alert("还没读到本机号码，请手动填写");
+          return;
+        }
+        document.getElementById("expNumber").value = expiryCurrentNumber;
+      }
+
+      function editExpiry(i) {
+        var e = expiryEntries[i];
+        document.getElementById("expNumber").value = e.number;
+        document.getElementById("expDate").value = e.expiryDate;
+        document.getElementById("expNote").value = e.note || "";
+        document.getElementById("expEnabled").checked = !!e.enabled;
+        document.getElementById("expOff30").checked = !!(e.offsetsMask & 1);
+        document.getElementById("expOff15").checked = !!(e.offsetsMask & 2);
+        document.getElementById("expOff7").checked = !!(e.offsetsMask & 4);
+        document.getElementById("expOff1").checked = !!(e.offsetsMask & 8);
+        expiryEditIndex = i;
+        document.getElementById("expSaveBtn").textContent = "💾 更新这条提醒";
+        document.getElementById("expCancelBtn").style.display = "block";
+        window.scrollTo({
+          top: document.getElementById("expNumber").offsetTop - 60,
+          behavior: "smooth",
+        });
+      }
+
+      function resetExpiryForm() {
+        expiryEditIndex = -1;
+        document.getElementById("expNumber").value = "";
+        document.getElementById("expDate").value = "";
+        document.getElementById("expNote").value = "";
+        document.getElementById("expEnabled").checked = true;
+        document.getElementById("expOff30").checked = true;
+        document.getElementById("expOff15").checked = true;
+        document.getElementById("expOff7").checked = true;
+        document.getElementById("expOff1").checked = true;
+        document.getElementById("expSaveBtn").textContent = "💾 保存到期提醒";
+        document.getElementById("expCancelBtn").style.display = "none";
+      }
+
+      function saveExpiry() {
+        var result = document.getElementById("expiryResult");
+        var number = document.getElementById("expNumber").value.trim();
+        var date = document.getElementById("expDate").value;
+        var note = document.getElementById("expNote").value.trim();
+
+        function fail(msg) {
+          result.className = "result-box result-error";
+          result.style.display = "block";
+          result.textContent = "❌ " + msg;
+        }
+
+        if (!number) {
+          fail("请填写要提醒的号码");
+          return;
+        }
+        if (!date) {
+          fail("请选择到期日期");
+          return;
+        }
+
+        var offsets = [];
+        if (document.getElementById("expOff30").checked) offsets.push(30);
+        if (document.getElementById("expOff15").checked) offsets.push(15);
+        if (document.getElementById("expOff7").checked) offsets.push(7);
+        if (document.getElementById("expOff1").checked) offsets.push(1);
+
+        var body = {
+          number: number,
+          expiryDate: date,
+          note: note,
+          offsets: offsets,
+          enabled: document.getElementById("expEnabled").checked,
+        };
+        if (expiryEditIndex >= 0) body.index = expiryEditIndex;
+
+        result.className = "result-box result-loading";
+        result.style.display = "block";
+        result.textContent = "保存中...";
+
+        fetch("/api/sim-expiry", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        })
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (d) {
+            if (!d.ok) throw new Error(d.error || "保存失败");
+            result.className = "result-box result-success";
+            result.textContent = "✅ " + (d.message || "保存成功");
+            resetExpiryForm();
+            loadExpiry();
+          })
+          .catch(function (e) {
+            result.className = "result-box result-error";
+            result.textContent = "❌ " + e.message;
+          });
+      }
+
+      function deleteExpiry(i) {
+        var e = expiryEntries[i];
+        if (!confirm("确定删除 " + e.number + " 的到期提醒吗？")) return;
+        fetch("/api/sim-expiry?index=" + i, { method: "DELETE" })
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (d) {
+            if (!d.ok) throw new Error(d.error || "删除失败");
+            loadExpiry();
+          })
+          .catch(function (e) {
+            alert("删除失败: " + e.message);
+          });
+      }
+
       document.addEventListener("DOMContentLoaded", function () {
         loadStatus();
         loadSoc();
         loadCoredumpInfo();
         startOtaVersionCheck();
+        loadMessages();
+        loadExpiry();
+        startMsgAutoRefresh();
       });
 
       // ── OTA ──────────────────────────────────────────────────────

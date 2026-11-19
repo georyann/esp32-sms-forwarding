@@ -2,6 +2,7 @@
 #include "ble/blufi.h"
 #include <WiFi.h>
 #include <esp_task_wdt.h>
+#include "common/wdt.h"
 #include <esp_wifi.h>
 #include "config/config.h"
 #include "../logger/logger.h"
@@ -10,6 +11,7 @@ static WiFiMode s_mode = WIFI_MODE_UNINITIALIZED;
 
 static bool                  s_everConnected = false;
 static bool                  s_initDone      = false;  // 初始化完成标志：STA 获取到 IP 或已进入 AP 模式
+static bool                  s_apActive      = false;  // 设备热点（SoftAP）当前是否在广播
 static WifiReconnectCallback s_reconnectCb   = nullptr;
 
 // 轮询重连状态机
@@ -86,21 +88,51 @@ static int buildSortedWifiOrder(int* outOrder, int count) {
   return visCount;
 }
 
+// 前置声明：setupSTAMode() 里的「热点常开」会调用它
+static void startSoftAP();
+
 static void setupSTAMode() {
   WiFi.setHostname(WifiManager::deviceName().c_str());
   WiFi.mode(WIFI_STA);
+  // 热点常开：连着路由器的同时也广播自己的热点，用户在手机/电脑的 WiFi 列表里
+  // 就能看到设备，连上后访问 192.168.4.1 就能进管理页（换环境时的兜底手段）。
+  // Arduino 的 softAP() 走 WiFi.enableAP(true)，只在模式里加 AP 位，不会关掉 STA，
+  // 因此可以和 STA 共存。
+  if (config.apAlwaysOn) {
+    startSoftAP();
+  }
   WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
 }
 
+// 启动设备热点（SoftAP）：名称与密码都取自配置。
+// 密码为空或短于 8 位时按「开放热点」处理 —— WPA2 规范要求密钥至少 8 位，
+// 强行传短密码会被驱动直接拒绝，反而连热点都开不起来。
+static void startSoftAP() {
+  const char* ssid = config.apSsid.length() ? config.apSsid.c_str() : kApSsid;
+  const char* pass = config.apPass.c_str();
+  bool hasPass = strlen(pass) >= 8;
+
+  bool ok = hasPass ? WiFi.softAP(ssid, pass) : WiFi.softAP(ssid);
+  if (!ok) {
+    s_apActive = false;
+    LOG("WIFI", "热点启动失败，SSID: %s", ssid);
+    return;
+  }
+  s_apActive = true;
+  LOG("WIFI", "设备热点已启动，SSID: %s，密码: %s，地址: 192.168.4.1",
+      ssid, hasPass ? "已设置" : "无（开放热点）");
+}
+
 static void enterAPMode() {
-  WiFi.softAP(kApSsid);
+  startSoftAP();
   // AP 模式下必须启用 Modem Sleep，否则 WiFi 持续占用射频，BLE 无法发送广播包
   esp_wifi_set_ps(WIFI_PS_MIN_MODEM);
   s_mode           = WIFI_MODE_AP_ACTIVE;
   s_initDone       = true;
   s_reconnState    = RECONNECT_IDLE;       // 清除可能残留的扫描等待状态
   s_apRescanNextMs = millis() + WIFI_AP_RESCAN_INTERVAL_MS;  // 30s 后首次后台扫描
-  LOG("WIFI", "AP模式启动，SSID: %s，IP: 192.168.4.1", kApSsid);
+  LOG("WIFI", "AP模式启动，SSID: %s，IP: 192.168.4.1",
+      config.apSsid.length() ? config.apSsid.c_str() : kApSsid);
   Blufi::init();
 }
 
@@ -114,6 +146,7 @@ void WifiManager::init() {
   s_reconnFromAP   = false;
   s_everConnected  = false;
   s_initDone       = false;
+  s_apActive       = false;
 
   // 软重启（ESP.restart）后 WiFi 驱动状态可能残留，强制关闭后再初始化
   WiFi.disconnect(true);
@@ -201,6 +234,7 @@ void WifiManager::tick() {
         LOG("WIFI", "AP模式后台扫描发现 %d 条匹配SSID，切换到重连状态机", matchCount);
         // 关闭 AP，切到 STA 模式，交由非阻塞重连状态机处理
         WiFi.softAPdisconnect(true);
+        s_apActive = false;
         delay(100);
         esp_task_wdt_reset();
         setupSTAMode();
@@ -332,6 +366,18 @@ String WifiManager::deviceId() {
 
 String WifiManager::deviceName() {
   return String(APP_NAME "-") + deviceId();
+}
+
+String WifiManager::apSsid() {
+  return config.apSsid.length() ? config.apSsid : String(kApSsid);
+}
+
+bool WifiManager::apActive() {
+  return s_apActive;
+}
+
+String WifiManager::apIp() {
+  return IPAddress(192, 168, 4, 1).toString();
 }
 
 void WifiManager::setReconnectCallback(WifiReconnectCallback cb) {

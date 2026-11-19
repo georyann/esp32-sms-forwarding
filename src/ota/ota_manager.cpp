@@ -2,6 +2,7 @@
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
 #include <LittleFS.h>
+#include <WiFiClient.h>   // core 3.x 起 WiFiClient 拆成独立头文件
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include "../logger/logger.h"

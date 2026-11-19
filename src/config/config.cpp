@@ -61,6 +61,12 @@ void ConfigStore::load() {
   config.atBridgeEnabled  = prefs.isKey("atBridge") ? prefs.getBool("atBridge", false) : false;
   config.thinModeEnabled  = prefs.isKey("thinMode") ? prefs.getBool("thinMode", false) : false;
 
+  // 设备自身热点（配网兜底用）
+  config.apSsid     = prefs.isKey("apSsid") ? prefs.getString("apSsid", kApSsid) : kApSsid;
+  if (config.apSsid.length() == 0) config.apSsid = kApSsid;
+  config.apPass     = prefs.isKey("apPass") ? prefs.getString("apPass", "") : "";
+  config.apAlwaysOn = prefs.getBool("apAlwaysOn", false);
+
   if (prefs.isKey("wifiCount")) {
     config.wifiCount = constrain((int)prefs.getUChar("wifiCount", 0), 0, MAX_WIFI_ENTRIES);
     for (int i = 0; i < config.wifiCount; i++) {
@@ -100,6 +106,9 @@ void ConfigStore::save() {
   if (config.webPass.length() == 0) {
     config.webPass = DEFAULT_WEB_PASS;
   }
+  if (config.apSsid.length() == 0) {
+    config.apSsid = kApSsid;
+  }
   config.pushCount      = constrain(config.pushCount, 1, MAX_PUSH_CHANNELS);
   config.wifiCount      = constrain(config.wifiCount, 0, MAX_WIFI_ENTRIES);
   config.blacklistCount = constrain(config.blacklistCount, 0, MAX_BLACKLIST_ENTRIES);
@@ -136,6 +145,10 @@ void ConfigStore::save() {
   prefs.putBool("logFile",     config.logFileEnabled);
   prefs.putBool("atBridge",    config.atBridgeEnabled);
   prefs.putBool("thinMode",    config.thinModeEnabled);
+
+  prefs.putString("apSsid", trimStr(config.apSsid));
+  prefs.putString("apPass", trimStr(config.apPass));
+  prefs.putBool("apAlwaysOn", config.apAlwaysOn);
 
   prefs.putUChar("wifiCount", (uint8_t)config.wifiCount);
   for (int i = 0; i < config.wifiCount; i++) {
@@ -243,6 +256,9 @@ void ConfigStore::reset() {
   }
   config.wifiCount = 1;
   config.wifiList[0] = WifiEntry{"", ""};
+  config.apSsid = kApSsid;
+  config.apPass = "";
+  config.apAlwaysOn = false;
 
   rebootSchedule = RebootSchedule{};
   rebootSchedule.hour      = 3;
@@ -298,6 +314,9 @@ void ConfigStore::toJson(JsonDocument& doc) {
   general["thinModeEnabled"]  = config.thinModeEnabled;
   general["pushStrategy"]     = (int)config.pushStrategy;
   general["remark"]           = config.remark;
+  general["apSsid"]           = config.apSsid;
+  general["apPass"]           = config.apPass;
+  general["apAlwaysOn"]       = config.apAlwaysOn;
 
   JsonArray wifiArr = doc["wifiList"].to<JsonArray>();
   for (int i = 0; i < config.wifiCount; i++) {
@@ -348,6 +367,19 @@ void ConfigStore::fromJson(JsonDocument& doc) {
     if (g["remark"].is<const char*>()) {
       config.remark = String(g["remark"].as<const char*>()).substring(0, 64);
     }
+    if (g["apSsid"].is<const char*>()) {
+      // 注意：Arduino 的 String::trim() 是原地修改并返回 void，不能写成
+      // String(x).trim()，必须先落到变量上再 trim。
+      String s = g["apSsid"].as<String>();
+      s.trim();
+      if (s.length() > 0) config.apSsid = s;
+    }
+    if (g["apPass"].is<const char*>()) {
+      String p = g["apPass"].as<String>();
+      p.trim();
+      config.apPass = p;
+    }
+    config.apAlwaysOn = g["apAlwaysOn"] | config.apAlwaysOn;
   }
 
   if (doc["wifiList"].is<JsonArray>()) {

@@ -50,6 +50,14 @@ public:
   // 设备名称，格式 "SMS-Forwarder-<deviceId>"
   static String   deviceName();
 
+  // 设备自身热点（SoftAP）信息
+  //   apSsid()   生效中的热点名称
+  //   apActive() 热点当前是否在广播
+  //   apIp()     热点地址，恒为 192.168.4.1
+  static String   apSsid();
+  static bool     apActive();
+  static String   apIp();
+
   // 注册 STA 重连成功回调
   static void     setReconnectCallback(WifiReconnectCallback cb);
 };

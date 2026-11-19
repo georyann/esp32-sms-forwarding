@@ -7,6 +7,7 @@
 #include "push/push.h"
 #include "time/time_sync.h"
 #include <esp_task_wdt.h>
+#include "common/wdt.h"
 
 // ---------- internal state ----------
 
@@ -514,8 +515,10 @@ static void startRegWait() {
 
 static void onRegSuccess() {
   s_rsm.phase = RP_DONE;
-  // 网络就绪后尝试 SIM 时间同步
-  TimeSync::syncFromSIM();
+  // 网络就绪后尝试 SIM 时间同步；已有 NTP 校准过的时间就不再覆盖
+  if (!TimeSync::isSynced()) {
+    TimeSync::syncFromSIM();
+  }
   s_state            = SIM_READY;
   s_tsm.state        = TS_PENDING;
   s_tsm.triggerMs    = millis();

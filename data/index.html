@@ -263,6 +263,9 @@
       <div id="mainContent">
         <div class="status" id="status">
           设备IP: <strong id="devIp">-</strong>
+          &nbsp;·&nbsp; 设备热点:
+          <strong id="devApSsid">-</strong>
+          <span id="devApState"></span>
         </div>
 
         <form id="configForm" onsubmit="saveConfig(event)">
@@ -620,7 +623,39 @@
           <div class="hint" style="margin-bottom: 12px">
             可配置最多 5 条
             WiFi，设备启动时按顺序尝试连接。修改后设备将立即重启以应用新 WiFi
-            配置。
+            配置。 一条都连不上时设备会开自己的热点，热点名称和密码在下面的「📡
+            设备热点」区块里设置。
+          </div>
+          <div
+            style="
+              display: flex;
+              gap: 8px;
+              align-items: center;
+              flex-wrap: wrap;
+              margin-bottom: 10px;
+            "
+          >
+            <button
+              type="button"
+              id="wifiScanBtn"
+              onclick="scanWifi()"
+              style="background: #6a1b9a; width: auto; flex: 0 0 auto"
+            >
+              📶 扫描附近 WiFi
+            </button>
+            <select
+              id="wifiScanSelect"
+              onchange="pickScannedWifi(this.value)"
+              style="
+                display: none;
+                flex: 1 1 200px;
+                min-width: 180px;
+                padding: 8px;
+                border-radius: 3px;
+                border: 1px solid #ccc;
+                background: #fff;
+              "
+            ></select>
           </div>
           <div id="wifiList"></div>
           <button
@@ -640,6 +675,68 @@
           </button>
           <div
             id="wifiResult"
+            style="
+              display: none;
+              margin-top: 8px;
+              padding: 8px;
+              border-radius: 3px;
+            "
+          ></div>
+        </div>
+
+        <!-- 设备热点区块：换环境时的配网兜底 -->
+        <div class="section" style="margin-top: 20px">
+          <div class="section-title">📡 设备热点（换环境配网用）</div>
+          <div class="hint" style="margin-bottom: 12px">
+            设备自己也会开一个 WiFi 热点。手机或电脑连上它，浏览器打开
+            <strong>http://192.168.4.1/</strong> 就能进管理页。换到没有记录过的
+            WiFi 环境时，这是唯一还能进设备后台的办法。
+          </div>
+          <div id="hotspotStatus" class="hint" style="margin-bottom: 12px">
+            正在读取热点状态…
+          </div>
+          <div class="form-group">
+            <label>热点名称（要能在 WiFi 列表里认出来）</label>
+            <input
+              type="text"
+              id="apSsid"
+              maxlength="32"
+              placeholder="SMS-Forwarder-AP"
+            />
+          </div>
+          <div class="form-group">
+            <label>热点密码（留空则不修改）</label>
+            <input
+              type="password"
+              id="apPass"
+              placeholder="至少 8 位；留空表示不修改"
+            />
+          </div>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="apClearPass" />
+              清除密码（改成无密码的开放热点）
+            </label>
+          </div>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="apAlwaysOn" />
+              热点常开：即使已经连上路由器，也同时广播自己的热点
+            </label>
+            <div class="hint" style="margin-top: 6px">
+              勾上以后，在手机/电脑的 WiFi 列表里随时都能看到设备热点；不勾则只有
+              「所有已保存的 WiFi 都连不上」时设备才会开热点。
+            </div>
+          </div>
+          <button
+            type="button"
+            onclick="saveHotspot()"
+            style="background: #6a1b9a"
+          >
+            📡 保存热点设置并重启
+          </button>
+          <div
+            id="hotspotResult"
             style="
               display: none;
               margin-top: 8px;
@@ -1223,6 +1320,17 @@
           })
           .then(function (data) {
             document.getElementById("devIp").textContent = data.ip || "未知";
+            var apSsid = document.getElementById("devApSsid");
+            var apState = document.getElementById("devApState");
+            if (data.apSsid) {
+              apSsid.textContent = data.apSsid;
+              apState.textContent = data.apActive
+                ? "（广播中，" + (data.apIp || "192.168.4.1") + "）"
+                : "（未广播）";
+            } else {
+              apSsid.textContent = "-";
+              apState.textContent = "";
+            }
           });
       }
 
@@ -1231,7 +1339,7 @@
         document.getElementById("loadingMsg").style.display = "block";
         document.getElementById("mainContent").style.display = "none";
 
-        Promise.all([loadConfig(), loadStatus(), loadWifi(), loadBlacklist()])
+        Promise.all([loadConfig(), loadStatus(), loadWifi(), loadHotspot(), loadBlacklist()])
           .then(function () {
             document.getElementById("loadingMsg").style.display = "none";
             document.getElementById("mainContent").style.display = "block";
@@ -1308,6 +1416,83 @@
         renderWifiList();
       }
 
+      // 扫描附近 WiFi：设备端阻塞扫描约 1.5~3 秒
+      function scanWifi() {
+        var btn = document.getElementById("wifiScanBtn");
+        var sel = document.getElementById("wifiScanSelect");
+        if (!btn || !sel) return;
+        btn.disabled = true;
+        btn.textContent = "⏳ 扫描中…";
+        fetch("/api/wifi/scan")
+          .then(function (resp) {
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            return resp.json();
+          })
+          .then(function (d) {
+            var list = d.networks || [];
+            if (!list.length) {
+              sel.innerHTML = "";
+              sel.style.display = "none";
+              showResult("wifiResult", false, "没有扫描到附近的 WiFi");
+              return;
+            }
+            list.sort(function (a, b) {
+              return b.rssi - a.rssi;
+            });
+            sel.innerHTML = "";
+            for (var i = 0; i < list.length; i++) {
+              var opt = document.createElement("option");
+              opt.value = list[i].ssid;
+              // RSSI -100..-30 映射到 0..100%
+              var pct = Math.round(
+                Math.max(0, Math.min(100, ((list[i].rssi + 100) / 70) * 100)),
+              );
+              opt.text =
+                list[i].ssid +
+                "（" +
+                pct +
+                "%" +
+                (list[i].secure ? " 🔒" : " 🔓") +
+                "）";
+              sel.appendChild(opt);
+            }
+            sel.style.display = "inline-block";
+            showResult(
+              "wifiResult",
+              true,
+              "扫描到 " + list.length + " 个 WiFi，请在右侧下拉框选择",
+            );
+          })
+          .catch(function (e) {
+            showResult("wifiResult", false, "扫描失败: " + e.message);
+          })
+          .then(function () {
+            btn.disabled = false;
+            btn.textContent = "📶 扫描附近 WiFi";
+          });
+      }
+
+      // 选中扫描结果后自动填入 SSID 输入框（优先第一个空位）
+      function pickScannedWifi(ssid) {
+        if (!ssid) return;
+        var target = null;
+        for (var i = 0; i < MAX_WIFI; i++) {
+          var el = document.getElementById("wifiSsid" + i);
+          if (el && (!el.value || el.value.trim() === "")) {
+            target = el;
+            break;
+          }
+        }
+        if (!target) target = document.getElementById("wifiSsid0");
+        if (!target) return;
+        target.value = ssid;
+        showResult(
+          "wifiResult",
+          true,
+          "已选择 " + ssid + "，请填写密码后点「📡 保存并重启」",
+        );
+      }
+
       function loadWifi() {
         return fetch("/api/wifi")
           .then(function (resp) {
@@ -1367,6 +1552,88 @@
           })
           .catch(function (e) {
             showResult("wifiResult", false, "请求失败: " + e.message);
+          });
+      }
+
+      // ---------- 设备热点（SoftAP） ----------
+      function loadHotspot() {
+        return fetch("/api/hotspot")
+          .then(function (resp) {
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            return resp.json();
+          })
+          .then(function (data) {
+            document.getElementById("apSsid").value = data.ssid || "";
+            document.getElementById("apAlwaysOn").checked = !!data.alwaysOn;
+            document.getElementById("apClearPass").checked = false;
+            document.getElementById("apPass").value = "";
+
+            var st = document.getElementById("hotspotStatus");
+            var passText = data.passSet
+              ? "已设置密码"
+              : "无密码（开放热点，附近任何人都能连上）";
+            st.innerHTML =
+              "当前热点：<strong>" +
+              (data.ssid || "-") +
+              "</strong> · 密码：" +
+              passText +
+              " · 状态：" +
+              (data.active ? "广播中" : "未广播") +
+              " · 连接地址：<strong>http://" +
+              (data.apIp || "192.168.4.1") +
+              "/</strong>";
+          });
+      }
+
+      function saveHotspot() {
+        var ssid = (document.getElementById("apSsid").value || "").trim();
+        var pw = document.getElementById("apPass").value || "";
+        var clearPass = document.getElementById("apClearPass").checked;
+        var alwaysOn = document.getElementById("apAlwaysOn").checked;
+
+        if (!ssid) {
+          showResult("hotspotResult", false, "热点名称不能为空");
+          return;
+        }
+        if (pw && pw.length < 8) {
+          showResult(
+            "hotspotResult",
+            false,
+            "热点密码至少 8 位（WPA2 要求）。想用无密码热点请勾选「清除密码」。",
+          );
+          return;
+        }
+        if (clearPass && pw) {
+          showResult("hotspotResult", false, "「清除密码」和填写新密码不能同时用");
+          return;
+        }
+
+        fetch("/api/hotspot", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ssid: ssid,
+            password: pw,
+            clearPass: clearPass,
+            alwaysOn: alwaysOn,
+          }),
+        })
+          .then(function (resp) {
+            return resp.json();
+          })
+          .then(function (d) {
+            if (d.ok) {
+              showResult(
+                "hotspotResult",
+                true,
+                d.message || "热点配置已保存，设备即将重启...",
+              );
+            } else {
+              showResult("hotspotResult", false, d.error || "保存失败");
+            }
+          })
+          .catch(function (e) {
+            showResult("hotspotResult", false, "请求失败: " + e.message);
           });
       }
 

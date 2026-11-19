@@ -1,12 +1,14 @@
 #include "sms.h"
 #include "config/config.h"
 #include "push/push.h"
+#include "history/history.h"
 #include "../logger/logger.h"
 #include "phone_utils.h"
 #include "sim/sim_dispatcher.h"
 #include <pdulib.h>
 #include <WiFi.h>
 #include <esp_task_wdt.h>
+#include "common/wdt.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/task.h>
@@ -727,6 +729,7 @@ static void processSmsContent(const char* sender, const char* text, const char* 
     }
   }
 
+  History::add(String(sender), String(text), String(timestamp), "sms", msgType.typeLabel);
   Push::send(String(sender), String(text), String(timestamp), msgType);
 }
 

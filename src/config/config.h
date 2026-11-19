@@ -84,6 +84,18 @@ struct Config {
   bool         thinModeEnabled;
   WifiEntry    wifiList[MAX_WIFI_ENTRIES];
   int          wifiCount;
+
+  // 设备自身热点（SoftAP）设置 —— 「换个环境还能配网」的兜底手段。
+  //   apSsid     热点名称，默认 SMS-Forwarder-AP
+  //   apPass     热点密码；空 = 开放热点（无密码）。WPA2 要求至少 8 位，
+  //              不足 8 位时会被当成开放热点处理
+  //   apAlwaysOn 热点常开：即使已经连上路由器也同时广播热点，
+  //              这样在手机/电脑的 WiFi 列表里随时能找到设备，
+  //              连上后访问 http://192.168.4.1/ 就能进管理页
+  String       apSsid;
+  String       apPass;
+  bool         apAlwaysOn;
+
   String       blacklist[MAX_BLACKLIST_ENTRIES];
   int          blacklistCount;
   PushStrategy pushStrategy;

@@ -10,6 +10,8 @@
 #include "controllers/ota.h"
 #include "controllers/logs.h"
 #include "controllers/at_bridge_api.h"
+#include "controllers/messages.h"
+#include "controllers/sim_expiry.h"
 #include "config/config.h"
 #include "../logger/logger.h"
 #include <LittleFS.h>
@@ -19,13 +21,27 @@ static const char* const AUTH_WHITELIST[] = {"/api/health", nullptr};
 
 static AsyncAuthenticationMiddleware g_authMiddleware;
 
+// 自己拼 401 响应，而不用库的 requestAuthentication()：
+// 库默认发 "text/html"（不带 charset），浏览器会按 Latin-1 解析，
+// 中文提示「请输入账号密码」在页面上会显示成乱码。
+static void sendAuthChallenge(AsyncWebServerRequest* req) {
+  const char* body =
+      "<!doctype html><html><head><meta charset=\"utf-8\"></head>"
+      "<body style=\"font-family:sans-serif;padding:24px\">"
+      "请输入账号密码后继续访问（默认 admin / admin123）。"
+      "</body></html>";
+  AsyncWebServerResponse* resp = req->beginResponse(401, "text/html; charset=utf-8", body);
+  resp->addHeader("WWW-Authenticate", "Basic realm=\"SMS Forwarding\"");
+  req->send(resp);
+}
+
 static AsyncMiddlewareFunction g_conditionalAuth([](AsyncWebServerRequest* req, ArMiddlewareNext next) {
   const char* url = req->url().c_str();
   for (int i = 0; AUTH_WHITELIST[i] != nullptr; ++i) {
     if (strcmp(url, AUTH_WHITELIST[i]) == 0) { next(); return; }
   }
   if (!g_authMiddleware.allowed(req)) {
-    req->requestAuthentication(AsyncAuthType::AUTH_BASIC, "SMS Forwarding", "请输入账号密码");
+    sendAuthChallenge(req);
     return;
   }
   next();
@@ -61,11 +77,33 @@ void HttpServer::setup(AsyncWebServer& server) {
   server.on("/api/soc",     HTTP_GET,  socController);
 
   // WiFi configuration API
+  // 注意：ESPAsyncWebServer 的字符串 URI 默认按「前缀」匹配，/api/wifi 会吃掉
+  // /api/wifi/scan，所以扫描接口必须用精确匹配，并且注册在前面。
+  server.on(AsyncURIMatcher::exact("/api/wifi/scan"), HTTP_GET, wifiScanController);
   server.on("/api/wifi", HTTP_GET, wifiGetController);
   server.on("/api/wifi", HTTP_POST,
     [](AsyncWebServerRequest* request) {},
     nullptr,
     wifiPostController);
+
+  // 设备自身热点（配网兜底）
+  server.on("/api/hotspot", HTTP_GET, hotspotGetController);
+  server.on("/api/hotspot", HTTP_POST,
+    [](AsyncWebServerRequest* request) {},
+    nullptr,
+    hotspotPostController);
+
+  // 收件箱（已收到的短信/来电）
+  server.on("/api/messages", HTTP_GET,    messagesGetController);
+  server.on("/api/messages", HTTP_DELETE, messagesDeleteController);
+
+  // SIM 卡到期提醒（可保存任意号码）
+  server.on("/api/sim-expiry", HTTP_GET,    simExpiryGetController);
+  server.on("/api/sim-expiry", HTTP_POST,
+    [](AsyncWebServerRequest* request) {},
+    nullptr,
+    simExpiryPostController);
+  server.on("/api/sim-expiry", HTTP_DELETE, simExpiryDeleteController);
 
   // Blacklist API
   server.on("/api/blacklist", HTTP_GET, blacklistGetController);

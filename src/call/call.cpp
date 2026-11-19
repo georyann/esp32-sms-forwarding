@@ -1,5 +1,6 @@
 #include "call.h"
 #include "push/push.h"
+#include "history/history.h"
 #include "sms/phone_utils.h"
 #include "sim/sim_dispatcher.h"
 #include "call_events.h"
@@ -23,6 +24,7 @@ void Call::dispatch(const String& callerNum) {
   // 系统查不到」或反之。黑名单拦截的来电两边都不出现。
   CallEvents::record(callerNum);
   String ts = TimeSync::dateStr();
+  History::add(callerNum, "来电号码: " + callerNum + "\n时间: " + ts, ts, "call", "");
   Push::send(callerNum, "来电号码: " + callerNum + "\n时间: " + ts, ts, MsgTypeInfo(MSG_TYPE_CALL));
   s_lastNotifyMs = millis();
   LOG("CALL", "来电通知已发送，号码: %s", callerNum.c_str());

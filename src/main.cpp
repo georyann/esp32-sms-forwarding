@@ -3,12 +3,14 @@
 #include <LittleFS.h>
 #include <ESPAsyncWebServer.h>
 #include <esp_task_wdt.h>
+#include "common/wdt.h"
 
 #include "wifi/wifi_manager.h"
 #include "logger/logger.h"
 #include "config/config.h"
 #include "sim/sim.h"
 #include "sim/at_bridge.h"
+#include "sim/sim_expiry.h"
 #include "call/call.h"
 #include "time/time_sync.h"
 #include "sms/sms.h"
@@ -104,6 +106,7 @@ void setup() {
 
   Sms::initConcatBuffer();
   ConfigStore::load();
+  SimExpiry::load();  // SIM 卡到期提醒（多号码）
   Coredump::init();  // 断电重启时从 NVS 恢复崩溃时间估算
   ConfigStore::loadReboot(rebootSchedule);
   esp_task_wdt_reset();
@@ -175,7 +178,9 @@ void setup() {
 void loop() {
   {
     static unsigned long lastUrlPrint = 0;
-    if (millis() - lastUrlPrint >= 3000) {
+    // 心跳间隔由 3 秒放宽到 30 秒：串口日志主要用于排查问题，3 秒一次会把真正
+    // 的运行日志冲掉。
+    if (millis() - lastUrlPrint >= 30000) {
       lastUrlPrint = millis();
       if (WifiManager::mode() == WIFI_MODE_AP_ACTIVE) {
         LOG("MAIN", "⚠️ 当前号码: %s，请访问 %s 配置WiFi，或通过 BluFi BLE 配网（设备名: %s）", Sim::phoneNum().c_str(), WifiManager::deviceUrl().c_str(), WifiManager::deviceName().c_str());
@@ -255,4 +260,5 @@ void loop() {
   }
 
   ConfigStore::rebootTick();
+  SimExpiry::tick();  // SIM 卡到期提醒检查
 }

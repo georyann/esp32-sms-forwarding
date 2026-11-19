@@ -47,7 +47,12 @@ void blufi_dh_negotiate_data_handler(uint8_t *data, int len,
         return;
     }
 
-    size_t   keyLen  = s_dhm.len;  // mbedtls 2.x 直接字段访问（3.x 用 mbedtls_dhm_get_len）
+    // mbedtls 2.x 直接字段访问（s_dhm.len）；3.x 改用 mbedtls_dhm_get_len()
+#if MBEDTLS_VERSION_MAJOR >= 3
+    size_t   keyLen  = (size_t)mbedtls_dhm_get_len(&s_dhm);
+#else
+    size_t   keyLen  = s_dhm.len;
+#endif
     uint8_t *selfPub = (uint8_t*)malloc(keyLen);
     if (!selfPub) return;
 

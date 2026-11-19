@@ -1,6 +1,7 @@
 #include "sim_dispatcher.h"
 #include <Arduino.h>
 #include <esp_task_wdt.h>
+#include "common/wdt.h"
 #include <strings.h>
 #include <new>
 #include "../logger/logger.h"

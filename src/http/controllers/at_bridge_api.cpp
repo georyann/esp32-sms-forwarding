@@ -8,6 +8,7 @@
 #include <ArduinoJson.h>
 #include <esp_random.h>
 #include <esp_task_wdt.h>
+#include "common/wdt.h"
 
 // 会话有效期。每条命令前后都会续期，因此只在「对端消失」时才真正到期。
 // 取 30s 是为了让一次丢包造成的泄漏窗口足够短：对端的 DELETE 是 best-effort，

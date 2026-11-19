@@ -4,6 +4,16 @@
 #include <time.h>
 #include <sys/time.h>
 
+// 公历日期 → 天数（Howard Hinnant 算法），避免依赖 timegm（ESP32 newlib 不一定有）
+static long daysFromCivil(int y, int m, int d) {
+  y -= m <= 2;
+  const long era = (y >= 0 ? y : y - 399) / 400;
+  const unsigned yoe = (unsigned)(y - era * 400);
+  const unsigned doy = (unsigned)((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1);
+  const unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+  return era * 146097L + (long)doe - 719468L;
+}
+
 bool          TimeSync::s_synced = false;
 unsigned long TimeSync::s_simRetryNext = 0;
 
@@ -47,16 +57,11 @@ void TimeSync::syncFromSIM() {
     tz = 0;
   }
 
-  struct tm t = {};
-  t.tm_year = yy + 100;
-  t.tm_mon  = mo - 1;
-  t.tm_mday = dd;
-  t.tm_hour = hh;
-  t.tm_min  = mi;
-  t.tm_sec  = ss;
-
-  time_t localTime = mktime(&t);
-  time_t utcTime   = localTime - (time_t)(tz * 15 * 60);
+  // ML307A 的 +CCLK 给出的是 UTC 挂钟时间，tz 字段（单位 15 分钟）单独表示
+  // 本地时区偏移。这里按 UTC 解释挂钟字段，偏移只用于设置 TZ 显示，不能再减一次
+  // （早先 mktime() 之后又减一遍 tz，导致整机时间整整差 8 小时）。
+  time_t utcTime = (time_t)daysFromCivil(2000 + yy, mo, dd) * 86400 +
+                   (time_t)hh * 3600 + (time_t)mi * 60 + ss;
 
   struct timeval tv = { utcTime, 0 };
   settimeofday(&tv, nullptr);

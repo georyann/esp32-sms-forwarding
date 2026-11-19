@@ -3,6 +3,7 @@
 #include "sim/sim.h"
 #include "sim/at_bridge.h"
 #include "time/time_sync.h"
+#include "wifi/wifi_manager.h"
 #include <AsyncJson.h>
 #include <ArduinoJson.h>
 #include <WiFi.h>
@@ -41,6 +42,11 @@ void statusController(AsyncWebServerRequest* request) {
   root["atBridgeEnabled"] = config.atBridgeEnabled;
   // 短信消费归属：瘦模式下本固件不消费入站短信，交由外部系统轮询取走。
   root["thinMode"]        = config.thinModeEnabled;
+
+  // 设备自身热点：让页面能直接显示「我的设备热点叫什么、连上去是哪个地址」
+  root["apSsid"]          = WifiManager::apSsid();
+  root["apActive"]        = WifiManager::apActive();
+  root["apIp"]            = WifiManager::apIp();
 
   resp->setLength();
   request->send(resp);
